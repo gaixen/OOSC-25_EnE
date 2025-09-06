@@ -11,17 +11,12 @@ load_dotenv()
 
 class CompanyProfileAgent:
     def __init__(self):
-        # API keys
         self.hunter_key = os.getenv("HUNTER_API_KEY")
 
-        # Redis setup
-        self.redis = redis.Redis(
-            host=os.getenv("REDIS_HOST", "localhost"),
-            port=int(os.getenv("REDIS_PORT", 6379)),
-            decode_responses=True,
-        )
+        # Fallback cache in memory (per run)
+        self.cache: Dict[str, Dict[str, Any]] = {}
 
-    # --------- Cache Helpers --------- #
+
     def _get_cache(self, key: str) -> Optional[Dict[str, Any]]:
         cached = self.redis.get(key)
         return json.loads(cached) if cached else None
@@ -29,7 +24,7 @@ class CompanyProfileAgent:
     def _set_cache(self, key: str, value: Dict[str, Any]):
         self.redis.setex(key, 86400, json.dumps(value))  # Cache for 1 day
 
-    # --------- Data Sources --------- #
+    
     def _fetch_hunter(self, domain: str) -> Optional[Dict[str, Any]]:
         """Fetch domain info from Hunter.io"""
         if not self.hunter_key:
@@ -75,8 +70,6 @@ class CompanyProfileAgent:
 
         return None
 
-
-
     # --------- Main Fetch Logic --------- #
     def fetch_profile(self, session_id: str, organization: str) -> Dict[str, Any]:
         """
@@ -98,14 +91,14 @@ class CompanyProfileAgent:
         data: Dict[str, Any] = {}
         sources: List[str] = []
 
-        # If input looks like a domain, use Hunter.io
-        if "." in organization and self.hunter_key:
+        # Try Hunter.io (works best if org is a domain)
+        if "." in organization:
             hu = self._fetch_hunter(organization)
             if hu:
                 data["hunter"] = hu
                 sources.append("Hunter.io")
 
-        # Always try Wikipedia
+        # Wikipedia fallback
         wiki = self._fetch_wikipedia(organization)
         if wiki:
             data["wikipedia"] = wiki
@@ -115,7 +108,7 @@ class CompanyProfileAgent:
         if not data:
             raise ValueError(f"No profile data found for {organization}")
 
-        # Cache it
+        # Cache for next time
         self._set_cache(cache_key, data)
 
         return {
@@ -128,14 +121,15 @@ class CompanyProfileAgent:
         }
 
 
-# ---------------- Example Usage ---------------- #
 if __name__ == "__main__":
     agent = CompanyProfileAgent()
+    session = "sess_001"
 
-    # Example 1: company name → Wikipedia
-    # profile1 = agent.fetch_profile("sess_001", "OpenAI")
-    # print(json.dumps(profile1, indent=2))
+    # Try a domain (Hunter works best with domains)
+    org = "openai.com"
 
-    # Example 2: domain → Hunter.io + Wikipedia
-    profile2 = agent.fetch_profile("sess_002", "meta.com")
-    print(json.dumps(profile2, indent=2))
+    try:
+        profile = agent.fetch_profile(session, org)
+        print(json.dumps(profile, indent=2))
+    except Exception as e:
+        print("Error:", e)

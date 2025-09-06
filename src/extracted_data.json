@@ -1,0 +1,20 @@
+{
+    "extracted_entities": [
+        {
+            "name": "Jeff",
+            "type": "PERSON",
+            "specifications": [],
+            "original_mentions": [
+                "Jeff"
+            ]
+        },
+        {
+            "name": "Amazon",
+            "type": "ORG",
+            "specifications": [],
+            "original_mentions": [
+                "Amazon"
+            ]
+        }
+    ]
+}
