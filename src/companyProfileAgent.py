@@ -151,20 +151,18 @@ load_dotenv()
 
 class CompanyProfileAgent:
     def __init__(self):
-        # API keys
         self.hunter_key = os.getenv("HUNTER_API_KEY")
 
-        # Fallback cache in memory (per run)
         self.cache: Dict[str, Dict[str, Any]] = {}
 
-    # --------- Cache Helpers --------- #
+
     def _get_cache(self, key: str) -> Optional[Dict[str, Any]]:
         return self.cache.get(key)
 
     def _set_cache(self, key: str, value: Dict[str, Any]):
         self.cache[key] = value
 
-    # --------- Data Sources --------- #
+    
     def _fetch_hunter(self, domain: str) -> Optional[Dict[str, Any]]:
         """Fetch company/domain info from Hunter.io"""
         if not self.hunter_key:
@@ -183,7 +181,7 @@ class CompanyProfileAgent:
             return resp.json().get("extract")
         return None
 
-    # --------- Main Fetch Logic --------- #
+    
     def fetch_profile(self, session_id: str, organization: str) -> Dict[str, Any]:
         """
         Fetch company profile from Hunter.io and Wikipedia.
@@ -204,14 +202,13 @@ class CompanyProfileAgent:
         data: Dict[str, Any] = {}
         sources: List[str] = []
 
-        # Try Hunter.io (works best if org is a domain)
         if "." in organization:
             hu = self._fetch_hunter(organization)
             if hu:
                 data["hunter"] = hu
                 sources.append("Hunter.io")
 
-        # Wikipedia fallback
+
         wiki = self._fetch_wikipedia(organization)
         if wiki:
             data["wikipedia_summary"] = wiki
@@ -220,7 +217,7 @@ class CompanyProfileAgent:
         if not data:
             raise ValueError(f"No profile data found for {organization}")
 
-        # Cache for next time
+
         self._set_cache(cache_key, data)
 
         return {
@@ -233,12 +230,10 @@ class CompanyProfileAgent:
         }
 
 
-# ---------------- Example Usage ---------------- #
 if __name__ == "__main__":
     agent = CompanyProfileAgent()
     session = "sess_001"
 
-    # Try a domain (Hunter works best with domains)
     org = "openai.com"
 
     try:
