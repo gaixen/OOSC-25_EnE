@@ -278,7 +278,7 @@ if __name__ == "__main__":
     result = agent.process_text(example_text)
 
     # Save to JSON file
-    with open("extracted_data.json", "w", encoding="utf-8") as f:
+    with open(r"/src/extracted_data.json", "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=4)
 
     print("Extraction complete. Results written to extracted_data.json")
