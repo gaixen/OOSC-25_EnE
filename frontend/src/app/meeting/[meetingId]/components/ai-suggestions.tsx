@@ -1,18 +1,18 @@
-import { Lightbulb, Bot, Database, BarChart, Route, ChevronsRight, FileText, BrainCircuit } from 'lucide-react';
+import { Lightbulb, Bot, Database, BarChart, Route, ChevronsRight, FileText, BrainCircuit, Loader2 } from 'lucide-react';
 import type { Suggestion } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { CurrentAgentIndicator } from './current-agent-indicator';
 import { ReplayTimelineButton } from './replay-timeline-button';
 
 interface AiSuggestionsProps {
   suggestions: Suggestion[];
   currentAgent: string;
+  isProcessing?: boolean;
 }
 
-export function AiSuggestions({ suggestions, currentAgent }: AiSuggestionsProps) {
+export function AiSuggestions({ suggestions, currentAgent, isProcessing = false }: AiSuggestionsProps) {
   const getConfidenceColor = (score: number) => {
     if (score > 0.8) return 'bg-green-500';
     if (score > 0.6) return 'bg-yellow-500';
@@ -25,15 +25,22 @@ export function AiSuggestions({ suggestions, currentAgent }: AiSuggestionsProps)
         <CardTitle className="flex items-center gap-2 text-lg">
           <Lightbulb className="text-primary" />
           <span>AI Suggestions</span>
+          {isProcessing && (
+            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          )}
         </CardTitle>
       </CardHeader>
-
-      <CurrentAgentIndicator agentName={currentAgent} />
 
       <CardContent className="flex-grow overflow-hidden p-0">
         <ScrollArea className="h-full">
           <div className="p-4">
-          {suggestions.length === 0 ? (
+          {isProcessing && suggestions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-8">
+              <Loader2 className="h-12 w-12 mb-4 animate-spin text-blue-500"/>
+              <p className="font-semibold text-blue-600">Processing conversation...</p>
+              <p className="text-sm">AI is analyzing entities and generating contextual suggestions.</p>
+            </div>
+          ) : suggestions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-8">
               <Bot className="h-12 w-12 mb-4"/>
               <p className="font-semibold">Waiting for suggestions...</p>

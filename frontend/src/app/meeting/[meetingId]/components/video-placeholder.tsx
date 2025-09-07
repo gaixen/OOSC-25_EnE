@@ -1,24 +1,103 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Video, Mic, PhoneOff, VideoOff, MicOff, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
-export function VideoPlaceholder() {
-  const [isMicOn, setIsMicOn] = useState(true);
+interface VideoPlaceholderProps {
+  onTranscription?: (text: string) => void;
+  sessionId?: string;
+}
+
+export function VideoPlaceholder({ onTranscription, sessionId }: VideoPlaceholderProps) {
+  const [isMicOn, setIsMicOn] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isCallActive, setIsCallActive] = useState(true);
   const [isEndingCall, setIsEndingCall] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  
   const router = useRouter();
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      mediaRecorder.ondataavailable = async (event) => {
+        if (event.data.size > 0 && onTranscription && sessionId) {
+          const formData = new FormData();
+          formData.append('audio', event.data);
+          formData.append('session_id', sessionId);
+          
+          try {
+            const response = await fetch('http://localhost:8000/api/process-audio', {
+              method: 'POST',
+              body: formData,
+            });
+            const result = await response.json();
+            if (result.transcription) {
+              onTranscription(result.transcription);
+            }
+          } catch (error) {
+            console.error('Audio processing error:', error);
+          }
+        }
+      };
+      
+      mediaRecorder.start(1000);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Microphone access error:', error);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+  };
+
+  const toggleMicrophone = () => {
+    const newMicState = !isMicOn;
+    setIsMicOn(newMicState);
+    
+    if (onTranscription && sessionId) {
+      // Send voice control message via WebSocket instead of audio upload
+      fetch('http://localhost:8000/api/voice-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          action: newMicState ? 'start' : 'stop'
+        })
+      });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopRecording();
+    };
+  }, []);
 
   const handleEndCall = () => {
+    stopRecording();
     setIsEndingCall(true);
     setTimeout(() => {
       router.push('/');
-    }, 1000); // Corresponds to animation duration
+    }, 1000);
   };
 
   return (
@@ -38,8 +117,12 @@ export function VideoPlaceholder() {
           <Button 
             variant="secondary" 
             size="icon" 
-            className="rounded-full h-12 w-12 bg-background/80 backdrop-blur-sm"
-            onClick={() => setIsMicOn(prev => !prev)}
+            className={cn(
+              "rounded-full h-12 w-12 bg-background/80 backdrop-blur-sm",
+              isMicOn && "bg-red-500 hover:bg-red-600 text-white",
+              isRecording && "animate-pulse"
+            )}
+            onClick={toggleMicrophone}
             aria-label={isMicOn ? "Mute microphone" : "Unmute microphone"}
           >
             {isMicOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}

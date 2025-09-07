@@ -6,9 +6,21 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "assemblyai>=0.43.1",
+    "ddgs>=9.5.5",
     "dotenv>=0.9.9",
+    "duckduckgo-search>=8.1.1",
+    "fastapi==0.104.1",
+    "google-generativeai>=0.8.5",
     "pyaudio>=0.2.14",
-    "pydub>=0.25.1",
+    "pydub==0.25.1",
+    "python-dotenv==1.0.0",
+    "redis==5.0.1",
+    "requests==2.31.0",
     "spacy>=3.8.7",
+    "speechrecognition==3.10.0",
+    "torch>=2.8.0",
+    "torchaudio>=2.8.0",
+    "uvicorn==0.24.0",
     "websocket>=0.2.1",
+    "websockets==11.0.3",
 ]
