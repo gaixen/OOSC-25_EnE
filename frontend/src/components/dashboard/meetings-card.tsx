@@ -34,7 +34,7 @@ export function MeetingsCard({ title, meetings }: MeetingsCardProps) {
                     {meeting.status === 'live' && <Badge variant="destructive" className="animate-pulse">Live</Badge>}
                   </div>
                 </div>
-                <Link href={`/meeting/${meeting.id}`} legacyBehavior>
+                <Link href={`/meeting/${meeting.id}`}>
                   <Button className="w-full sm:w-auto" variant={isUpcoming ? "default" : "outline"}>
                     {meeting.status === "completed" ? "View" : meeting.status === "live" ? "Join" : "Go Live"}
                     <ArrowRight className="ml-2 h-4 w-4" />
