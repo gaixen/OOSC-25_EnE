@@ -2,6 +2,7 @@
 - This is combined submission of our Team Explorers and Exploiters: **Soham Mukherjee** (Gaixen) and **Akshat Kasarwal** (Akshat7776)<br>
 
 #### Small labeled dataset for accuracy/relevance testing [Evaluation Suite](https://docs.google.com/spreadsheets/d/14IvQgS6KId1UkU5Tmcy28XF72CPzhK2Q/edit?usp=drive_link&ouid=104840222808752851253&rtpof=true&sd=true)
+#### Video Demonstration of project [link](https://drive.google.com/file/d/1Mder-EvUZn92sPO4ZrQStR_lRLpkn_NL/view?usp=drive_link)
 
 ### Running Instructions
 
@@ -85,10 +86,52 @@
 
 ### Folder Structure
 This is the proper folder structure of the project for the Overlayy  project containing both frontend and backend.
-
-
-
-
+```
+OOSC-25_EnE/
+│
+├── README.md
+├── requirements.txt
+├── pyproject.toml
+├── main.py
+├── docker-compose.yml
+├── Dockerfile
+├── uv.lock
+├── frontend/
+│   ├── package.json
+│   ├── README.md
+│   ├── next.config.ts
+│   ├── tsconfig.json
+│   ├── tailwind.config.ts
+│   ├── postcss.config.mjs
+│   ├── apphosting.yaml
+│   ├── Dockerfile
+│   ├── components.json
+│   ├── next-env.d.ts
+│   └── src/
+│       ├── app/
+│       ├── ai/
+│       ├── components/
+│       ├── hooks/
+│       ├── lib/
+│       └── types/
+├── src/
+│   ├── companyNews.py
+│   ├── companyProfileAgent.py
+│   ├── entityExtractor.py
+│   ├── extracted_data.json
+│   ├── marketCompetitor.py
+│   ├── personEnrichment.py
+│   ├── ranking_agent.py
+│   ├── retriever_agent.py
+│   ├── suggestion_agent.py
+│   ├── orchestrator.py
+│   ├── voice.py
+│   ├── ui_agent.py
+├── Assets/
+│       └── Architecture.png
+└── research/
+    └── speechHandler.py
+```
 ---
 ### Agent Interaction Overview
 
