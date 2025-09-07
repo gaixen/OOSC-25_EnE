@@ -25,6 +25,7 @@
      HUNTER_API_KEY=your-hunter-key
      REDIS_HOST=localhost
      REDIS_PORT=6379
+     OPENAI_API_KEY=your-openai-api-key
      ```
 
 4. **Setup Redis**
