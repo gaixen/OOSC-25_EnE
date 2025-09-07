@@ -1,19 +1,11 @@
 {
     "extracted_entities": [
         {
-            "name": "Jeff",
-            "type": "PERSON",
+            "name": "google",
+            "type": "PRODUCT",
             "specifications": [],
             "original_mentions": [
-                "Jeff"
-            ]
-        },
-        {
-            "name": "Amazon",
-            "type": "ORG",
-            "specifications": [],
-            "original_mentions": [
-                "Amazon"
+                "google"
             ]
         }
     ]

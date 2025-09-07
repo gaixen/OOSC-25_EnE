@@ -11,14 +11,14 @@ load_dotenv()
 
 
 class InfoExtractionAgent:
-    def __init__(self, model_name: str = "en_core_web_sm", gemini_model: str = "gemini-1.5-flash"):
-        """Load spaCy and initialize Gemini client."""
+    def __init__(self, model_name: str = "en_core_web_sm", gemini_model: str = "gemini-2.0-flash"):
+        """Initialize with Gemini Pro as primary extraction method."""
+        # Keep spaCy as optional fallback but use Gemini as primary
         try:
             self.nlp = spacy.load(model_name)
         except OSError:
-            raise RuntimeError(
-                f"spaCy model '{model_name}' not found. Install it with: python -m spacy download {model_name}"
-            )
+            print(f"Warning: spaCy model '{model_name}' not found. Using Gemini only.")
+            self.nlp = None
 
         self.gemini_model = gemini_model
         api_key = os.environ.get("GEMINI_API_KEY")
@@ -88,17 +88,78 @@ Tasks:
         return refined
 
     def process_text(self, text: str) -> dict:
-        """Run spaCy extraction then refine with Gemini."""
-        raw_output = self._extract_with_spacy(text)
-        refined_output = self._refine_with_gemini(raw_output, text)
-        return refined_output
+        """Extract entities directly using Gemini Pro for better accuracy."""
+        prompt = f"""
+Extract all entities from the following text and return a JSON response with the exact structure shown below.
+
+Text to analyze: "{text}"
+
+Required JSON structure:
+{{
+    "extracted_entities": [
+        {{
+            "name": "entity_name",
+            "type": "PERSON|ORG|PRODUCT|LOCATION|MISC",
+            "specifications": [],
+            "original_mentions": ["mention1", "mention2"]
+        }}
+    ]
+}}
+
+Entity type guidelines:
+- PERSON: Individual people (e.g., "Sundar Pichai", "Elon Musk")
+- ORG: Companies, organizations (e.g., "Google", "Microsoft", "Tesla")
+- PRODUCT: Products, services, brands (e.g., "iPhone", "Windows", "Gmail")
+- LOCATION: Places, countries, cities (e.g., "California", "New York")
+- MISC: Other significant entities
+
+Important rules:
+1. Extract ALL entities, don't miss any
+2. For people, use their full name if available
+3. For organizations, use the proper company name
+4. Return ONLY the JSON, no other text
+5. Ensure the JSON is valid and properly formatted
+"""
+
+        try:
+            response = self.llm.generate_content(prompt)
+            response_text = response.text.strip()
+            
+            # Clean markdown code blocks if present
+            if response_text.startswith('```json'):
+                response_text = response_text.replace('```json', '').replace('```', '').strip()
+            elif response_text.startswith('```'):
+                response_text = response_text.replace('```', '').strip()
+            
+            result = json.loads(response_text)
+            
+            # Validate the structure
+            if "extracted_entities" not in result:
+                result = {"extracted_entities": []}
+                
+            print(f"🔍 Gemini extracted {len(result['extracted_entities'])} entities: {[e['name'] for e in result['extracted_entities']]}")
+            return result
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON decode error: {e}")
+            print(f"Raw response: {response.text}")
+            # Fallback to empty result
+            return {"extracted_entities": []}
+        except Exception as e:
+            print(f"❌ Gemini extraction failed: {e}")
+            # Fallback to spaCy if available
+            if self.nlp:
+                print("🔄 Falling back to spaCy extraction")
+                raw_output = self._extract_with_spacy(text)
+                return {"extracted_entities": list(raw_output.values())}
+            else:
+                return {"extracted_entities": []}
 
 
 if __name__ == "__main__":
     # Example run
     example_text = (
-        "Jeff bezos is a CEO of Amazon "
-        "He is known for his work in amazon"
+        "sundar pichai is the ceo of google."
     )
 
     agent = InfoExtractionAgent()

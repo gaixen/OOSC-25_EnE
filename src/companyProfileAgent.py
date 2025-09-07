@@ -40,18 +40,31 @@ class CompanyProfileAgent:
                 "url": resp_json.get("content_urls", {}).get("desktop", {}).get("page"),
             }
 
-        # First try direct summary
-        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{company}"
+        # Clean company name - remove .com if present for Wikipedia search
+        clean_company = company.replace('.com', '').replace('.', ' ').title()
+        
+        # Special handling for common company names
+        if clean_company.lower() == 'meta':
+            clean_company = 'Meta Platforms'
+        elif clean_company.lower() == 'google':
+            clean_company = 'Google'
+        elif clean_company.lower() == 'microsoft':
+            clean_company = 'Microsoft'
+        
+        print(f"🔍 Wikipedia: Searching for '{clean_company}' (from original: '{company}')")
+        
+        # First try direct summary with cleaned name
+        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{clean_company}"
         resp = requests.get(url)
         if resp.status_code == 200:
             return parse_summary(resp.json())
 
-        # If direct fetch fails, try search
+        # If direct fetch fails, try search with cleaned name
         search_url = "https://en.wikipedia.org/w/api.php"
         params = {
             "action": "query",
             "list": "search",
-            "srsearch": company,
+            "srsearch": clean_company,
             "format": "json",
         }
         search_resp = requests.get(search_url, params=params)
@@ -87,22 +100,42 @@ class CompanyProfileAgent:
         data: Dict[str, Any] = {}
         sources: List[str] = []
 
-        # Try Hunter.io (works best if org is a domain)
+        # Try Hunter.io (works with domains)
         if "." in organization:
-            hu = self._fetch_hunter(organization)
-            if hu:
-                data["hunter"] = hu
-                sources.append("Hunter.io")
+            try:
+                hu = self._fetch_hunter(organization)
+                if hu and hu.get('data'):
+                    data["hunter"] = hu
+                    sources.append("Hunter.io")
+                    print(f"✅ Hunter.io found data for {organization}")
+            except Exception as e:
+                print(f"⚠️ Hunter.io failed for {organization}: {e}")
+        else:
+            # If no dot, try adding .com for Hunter.io
+            domain_version = f"{organization.lower()}.com"
+            try:
+                hu = self._fetch_hunter(domain_version)
+                if hu and hu.get('data'):
+                    data["hunter"] = hu
+                    sources.append("Hunter.io")
+                    print(f"✅ Hunter.io found data for {domain_version} (converted from {organization})")
+            except Exception as e:
+                print(f"⚠️ Hunter.io failed for {domain_version}: {e}")
 
-        # Wikipedia fallback
-        wiki = self._fetch_wikipedia(organization)
-        if wiki:
-            data["wikipedia"] = wiki
-            sources.append("Wikipedia")
-
+        # Always try Wikipedia (works with company names)
+        try:
+            wiki = self._fetch_wikipedia(organization)
+            if wiki and wiki.get('summary'):
+                data["wikipedia"] = wiki
+                sources.append("Wikipedia")
+                print(f"✅ Wikipedia found data for {organization}")
+        except Exception as e:
+            print(f"⚠️ Wikipedia failed for {organization}: {e}")
 
         if not data:
-            raise ValueError(f"No profile data found for {organization}")
+            # More specific error message
+            domain_part = organization if "." in organization else f"{organization}.com"
+            raise ValueError(f"No profile data found for {organization}. Tried Hunter.io with '{domain_part}' and Wikipedia with company name.")
 
         # Cache for next time
         self._set_cache(cache_key, data)

@@ -4,8 +4,9 @@ import { meetings } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import LiveMeetingClient from "./components/live-meeting-client";
 
-export default function MeetingPage({ params }: { params: { meetingId: string } }) {
-  const meeting = meetings.find((m) => m.id === params.meetingId);
+export default async function MeetingPage({ params }: { params: { meetingId: string } }) {
+  const { meetingId } = await params;
+  const meeting = meetings.find((m) => m.id === meetingId);
 
   if (!meeting) {
     return (

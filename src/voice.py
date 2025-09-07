@@ -38,27 +38,55 @@ class AssemblyAIRealtimeTranscriber:
         self.stop_event = threading.Event()
         self.recorded_frames = []
         self.recording_lock = threading.Lock()
+        self.cleanup_lock = threading.Lock()
         self.is_running = False
+        self.is_cleaning_up = False
         
         print(f"🎤 AssemblyAI Transcriber initialized with callback: {self.on_transcript_callback is not None}")
 
     # ---------------- Event Handlers ---------------- #
     def on_open(self, ws):
         def stream_audio():
+            print("🎵 Audio streaming thread started")
             while not self.stop_event.is_set():
                 try:
-                    if self.stream:
+                    # Check if we still have valid stream and websocket
+                    if not self.stream or not ws or self.stop_event.is_set():
+                        print("🛑 Stream or WebSocket no longer available, stopping audio thread")
+                        break
+                        
+                    if self.stream.is_active():
                         audio_data = self.stream.read(
                             self.frames_per_buffer, exception_on_overflow=False
                         )
+                        
+                        # Check again if we should stop before processing data
+                        if self.stop_event.is_set():
+                            break
+                            
                         with self.recording_lock:
-                            self.recorded_frames.append(audio_data)
-                        ws.send(audio_data, websocket.ABNF.OPCODE_BINARY)
+                            if not self.stop_event.is_set():  # Double-check before adding frames
+                                self.recorded_frames.append(audio_data)
+                        
+                        # Only send if WebSocket is still connected
+                        if ws and not self.stop_event.is_set():
+                            ws.send(audio_data, websocket.ABNF.OPCODE_BINARY)
+                    else:
+                        # Stream not active, break the loop
+                        print("🔇 Audio stream no longer active")
+                        break
                 except Exception as e:
-                    break
+                    print(f"⚠️ Error in audio streaming: {e}")
+                    if "stream" in str(e).lower() or "closed" in str(e).lower():
+                        print("🛑 Stream-related error, stopping audio thread")
+                        break
+                    # For non-critical errors, continue but add a small delay
+                    time.sleep(0.01)
+            print("🎵 Audio streaming thread stopped")
 
         self.audio_thread = threading.Thread(target=stream_audio, daemon=True)
         self.audio_thread.start()
+        print("📡 AssemblyAI WebSocket connection opened")
 
     def on_message(self, ws, message):
         try:
@@ -90,10 +118,23 @@ class AssemblyAIRealtimeTranscriber:
             print(f"❌ Error processing message: {e}")
 
     def on_error(self, ws, error):
-        self.stop_event.set()
+        print(f"⚠️ AssemblyAI WebSocket error: {error}")
+        # Don't immediately stop - let the system handle this gracefully
+        # Only set stop event if this is a critical error that requires shutdown
+        if "authentication" in str(error).lower() or "unauthorized" in str(error).lower():
+            print("❌ Authentication error - stopping transcription")
+            self.stop_event.set()
+        else:
+            print("🔄 Non-critical error - continuing transcription")
 
     def on_close(self, ws, code, msg):
-        self.cleanup()
+        print(f"🔌 AssemblyAI WebSocket closed: code={code}, msg={msg}")
+        # Only cleanup if this was an unexpected closure or we're already stopping
+        if self.stop_event.is_set() or (code and code not in [1000, 1001]):  # 1000=normal, 1001=going away
+            print("🧹 Cleaning up due to unexpected closure or stop event")
+            self.cleanup()
+        else:
+            print("✅ Normal WebSocket closure - no cleanup needed")
 
     # ---------------- Core Methods ---------------- #
     def start_streaming(self):
@@ -143,19 +184,47 @@ class AssemblyAIRealtimeTranscriber:
 
     def stop_streaming(self):
         if not self.is_running:
+            print("⚠️ Transcriber already stopped")
             return
             
+        print("🛑 Stopping voice transcription...")
         self.is_running = False
         self.stop_event.set()
-        if self.ws_app and self.ws_app.sock and self.ws_app.sock.connected:
+        
+        try:
+            # Gracefully close WebSocket first
+            if self.ws_app and self.ws_app.sock and self.ws_app.sock.connected:
+                try:
+                    self.ws_app.send(json.dumps({"type": "Terminate"}))
+                    print("📡 Sent termination signal to AssemblyAI")
+                    time.sleep(0.2)  # Give time for graceful shutdown
+                except Exception as e:
+                    print(f"⚠️ Error sending termination signal: {e}")
+                    
+            if self.ws_app:
+                try:
+                    self.ws_app.close()
+                    print("🌐 WebSocket connection closed")
+                except Exception as e:
+                    print(f"⚠️ Error closing WebSocket: {e}")
+                    
+        except Exception as e:
+            print(f"⚠️ Error during WebSocket cleanup: {e}")
+        
+        # Wait for audio thread to finish first (before cleanup)
+        if self.audio_thread and self.audio_thread.is_alive():
             try:
-                self.ws_app.send(json.dumps({"type": "Terminate"}))
-                time.sleep(0.1)
-            except:
-                pass
-        if self.ws_app:
-            self.ws_app.close()
+                self.audio_thread.join(timeout=2.0)
+                if self.audio_thread.is_alive():
+                    print("⚠️ Audio thread did not terminate gracefully")
+                else:
+                    print("🧵 Audio thread finished gracefully")
+            except Exception as e:
+                print(f"⚠️ Error joining audio thread: {e}")
+        
+        # Clean up audio resources (this will be prevented from running twice by the lock)
         self.cleanup()
+        print("✅ Voice transcription stopped successfully")
 
     def save_wav_file(self):
         """Save recorded audio to a WAV file"""
@@ -181,17 +250,52 @@ class AssemblyAIRealtimeTranscriber:
             print(f"❌ Error saving WAV: {e}")
 
     def cleanup(self):
-        self.stop_event.set()
-        if self.stream:
-            if self.stream.is_active():
-                self.stream.stop_stream()
-            self.stream.close()
-            self.stream = None
-        if self.audio:
-            self.audio.terminate()
-            self.audio = None
-        if self.audio_thread and self.audio_thread.is_alive():
-            self.audio_thread.join(timeout=1.0)
+        # Prevent multiple cleanup calls with a lock
+        with self.cleanup_lock:
+            if self.is_cleaning_up:
+                print("🔄 Cleanup already in progress, skipping...")
+                return
+            
+            self.is_cleaning_up = True
+            print("🧹 Cleaning up audio resources...")
+            self.stop_event.set()
+            
+            # Close audio stream first
+            if self.stream:
+                try:
+                    if self.stream.is_active():
+                        self.stream.stop_stream()
+                        print("🔇 Audio stream stopped")
+                    self.stream.close()
+                    print("🔒 Audio stream closed")
+                    self.stream = None
+                except Exception as e:
+                    print(f"⚠️ Error closing audio stream: {e}")
+                    self.stream = None
+            
+            # Terminate PyAudio
+            if self.audio:
+                try:
+                    self.audio.terminate()
+                    print("🎤 PyAudio terminated")
+                    self.audio = None
+                except Exception as e:
+                    print(f"⚠️ Error terminating PyAudio: {e}")
+                    self.audio = None
+            
+            # Wait for audio thread with timeout
+            if self.audio_thread and self.audio_thread.is_alive():
+                try:
+                    self.audio_thread.join(timeout=1.0)
+                    if self.audio_thread.is_alive():
+                        print("⚠️ Audio thread still alive after timeout")
+                    else:
+                        print("🧵 Audio thread terminated")
+                except Exception as e:
+                    print(f"⚠️ Error joining audio thread: {e}")
+            
+            self.is_running = False
+            print("✅ Cleanup completed")
 
 if __name__ == "__main__":
     load_dotenv()
