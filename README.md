@@ -9,7 +9,7 @@
 1. **Clone the repository**
    ```sh
    git clone https://github.com/gaixen/OOSC-25_EnE.git oosc-25_EnE
-   cd OOSC-25_EnE
+   cd oosc-25_EnE
    ```
 
 2. **Install Python dependencies**
