@@ -12,17 +12,13 @@ load_dotenv()
 class CompanyProfileAgent:
     def __init__(self):
         self.hunter_key = os.getenv("HUNTER_API_KEY")
-
-        # Fallback cache in memory (per run)
         self.cache: Dict[str, Dict[str, Any]] = {}
 
-
     def _get_cache(self, key: str) -> Optional[Dict[str, Any]]:
-        cached = self.redis.get(key)
-        return json.loads(cached) if cached else None
+        return self.cache.get(key)
 
     def _set_cache(self, key: str, value: Dict[str, Any]):
-        self.redis.setex(key, 86400, json.dumps(value))  # Cache for 1 day
+        self.cache[key] = value
 
     
     def _fetch_hunter(self, domain: str) -> Optional[Dict[str, Any]]:
