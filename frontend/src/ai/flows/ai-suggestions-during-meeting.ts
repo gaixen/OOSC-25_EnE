@@ -62,9 +62,12 @@ const generateAISuggestionsFlow = ai.defineFlow(
     name: 'generateAISuggestionsFlow',
     inputSchema: GenerateAISuggestionsInputSchema,
     outputSchema: GenerateAISuggestionsOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
-  }
+    },
+    async input => {
+      const { output } = await prompt(input);
+      if (!output) {
+        throw new Error("No output returned from prompt");
+      }
+      return output;
+    }
 );
